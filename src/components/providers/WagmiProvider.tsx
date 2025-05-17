@@ -1,5 +1,8 @@
 import { createConfig, http, WagmiProvider } from "wagmi";
-import { base, degen, mainnet, optimism, unichain } from "wagmi/chains";
+// Attempt to import monadTestnet directly from wagmi/chains
+// If this fails, it means Monad Testnet is not yet officially supported by wagmi
+// and we should revert to the custom chain definition approach.
+import { monadTestnet } from "wagmi/chains"; 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { farcasterFrame } from "@farcaster/frame-wagmi-connector";
 import { coinbaseWallet, metaMask } from 'wagmi/connectors';
@@ -15,7 +18,6 @@ function useCoinbaseWalletAutoConnect() {
   const { isConnected } = useAccount();
 
   useEffect(() => {
-    // Check if we're running in Coinbase Wallet
     const checkCoinbaseWallet = () => {
       const isInCoinbaseWallet = window.ethereum?.isCoinbaseWallet || 
         window.ethereum?.isCoinbaseWalletExtension ||
@@ -32,9 +34,9 @@ function useCoinbaseWalletAutoConnect() {
   }, []);
 
   useEffect(() => {
-    // Auto-connect if in Coinbase Wallet and not already connected
-    if (isCoinbaseWallet && !isConnected) {
-      connect({ connector: connectors[1] }); // Coinbase Wallet connector
+    if (isCoinbaseWallet && !isConnected && connectors.length > 1 && connectors[1]) {
+      // Assuming connectors[0] is farcasterFrame, connectors[1] is coinbaseWallet
+      connect({ connector: connectors[1] }); 
     }
   }, [isCoinbaseWallet, isConnected, connect, connectors]);
 
@@ -42,13 +44,9 @@ function useCoinbaseWalletAutoConnect() {
 }
 
 export const config = createConfig({
-  chains: [base, optimism, mainnet, degen, unichain],
+  chains: [monadTestnet], // Only Monad Testnet as per user's sample
   transports: {
-    [base.id]: http(),
-    [optimism.id]: http(),
-    [mainnet.id]: http(),
-    [degen.id]: http(),
-    [unichain.id]: http(),
+    [monadTestnet.id]: http(),
   },
   connectors: [
     farcasterFrame(),
@@ -68,7 +66,6 @@ export const config = createConfig({
 
 const queryClient = new QueryClient();
 
-// Wrapper component that provides Coinbase Wallet auto-connection
 function CoinbaseWalletAutoConnect({ children }: { children: React.ReactNode }) {
   useCoinbaseWalletAutoConnect();
   return <>{children}</>;

@@ -20,6 +20,7 @@
     "cleanup": "lsof -ti :3000 | xargs kill -9"
   },
   "dependencies": {
+    "@chainlink/contracts": "^1.4.0",
     "@farcaster/auth-client": ">=0.3.0 <1.0.0",
     "@farcaster/auth-kit": ">=0.6.0 <1.0.0",
     "@farcaster/frame-core": ">=0.0.29 <1.0.0",
@@ -40,8 +41,8 @@
     "react-dom": "^18",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
-    "viem": "^2.23.6",
-    "wagmi": "^2.14.12",
+    "viem": "^2.29.4",
+    "wagmi": "^2.15.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
