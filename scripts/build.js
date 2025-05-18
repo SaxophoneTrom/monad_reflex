@@ -246,7 +246,7 @@ async function main() {
     // Get Neynar configuration
     let neynarApiKey = process.env.NEYNAR_API_KEY;
     let neynarClientId = process.env.NEYNAR_CLIENT_ID;
-    let useNeynar = true;
+    let useNeynar = false;
 
     while (useNeynar) {
       if (!neynarApiKey) {

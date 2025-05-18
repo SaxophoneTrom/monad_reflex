@@ -6,10 +6,10 @@ import { useAccount, useConnect, useSwitchChain } from 'wagmi';
 import sdk from '@farcaster/frame-sdk';
 import { config } from '~/components/providers/WagmiProvider';
 import { monadTestnet } from 'wagmi/chains';
-import { type Address, parseEther, formatEther } from 'viem';
+import { type Address, parseEther, formatEther, Abi, Log, AbiItem } from 'viem';
 
 // Updated ABI for VRFReflexBlitz
-const VRFReflexBlitzABI_UPDATED = [
+const VRFReflexBlitzABI_UPDATED: Abi = [
   {
     "inputs": [
       { "internalType": "uint256", "name": "_initialPlayPrice", "type": "uint256" },
@@ -38,10 +38,10 @@ const VRFReflexBlitzABI_UPDATED = [
   { "inputs": [ { "internalType": "uint256", "name": "_newPlaysPerSession", "type": "uint256" } ], "name": "setPlaysPerSession", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
   { "inputs": [], "name": "withdraw", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
   { "stateMutability": "payable", "type": "receive" }
-];
+] as const;
 
 // ABI for ReflexBlitzNFT (Updated)
-const ReflexBlitzNFTABI = [
+const ReflexBlitzNFTABI: Abi = [
   { "inputs": [], "stateMutability": "nonpayable", "type": "constructor" },
   { "inputs": [{ "internalType": "string", "name": "name", "type": "string" },{ "internalType": "string", "name": "version", "type": "string" } ], "name": "EIP712DomainChanged", "type": "event", "anonymous": false },
   { "anonymous": false, "inputs": [ { "indexed": true, "internalType": "address", "name": "player", "type": "address" }, { "indexed": true, "internalType": "uint256", "name": "tokenId", "type": "uint256" }, { "indexed": false, "internalType": "uint256", "name": "score", "type": "uint256" }, { "indexed": false, "internalType": "string", "name": "rank", "type": "string" }, { "indexed": false, "internalType": "uint256", "name": "nonce", "type": "uint256" } ], "name": "NFTMintedWithSignature", "type": "event" },
@@ -66,7 +66,7 @@ const ReflexBlitzNFTABI = [
   { "inputs": [ { "internalType": "uint256", "name": "", "type": "uint256" } ], "name": "usedNonces", "outputs": [ { "internalType": "bool", "name": "", "type": "bool" } ], "stateMutability": "view", "type": "function" },
   { "inputs": [], "name": "withdraw", "outputs": [], "stateMutability": "nonpayable", "type": "function" },
   { "stateMutability": "payable", "type": "receive" }
-];
+] as const;
 
 // Contract Addresses (Update VRF_CONTRACT_ADDRESS after new deployment)
 const NFT_CONTRACT_ADDRESS = '0xFed7E2293919283Ec67e2c65C1Da03B642c6D197';
@@ -74,7 +74,7 @@ const VRF_CONTRACT_ADDRESS = '0x2CbFE9F51354Ec590FF80d34D1f06D922aABDF24'; // �
 
 
 // Use the ID from the imported monadTestnet object
-const MONAD_TESTNET_CHAIN_ID = 10143;
+const MONAD_TESTNET_CHAIN_ID = 10143; 
 
 // Default Play and Mint Prices (can be fetched from contract)
 const DEFAULT_PLAY_PRICE_ETH = "0.01";
@@ -120,9 +120,26 @@ const ResultModal: React.FC<ResultModalProps> = ({
 }) => {
   if (!isOpen) return null;
 
-  // Show mint button only if it's a success, a reaction time is available, NFT hasn't been minted for THIS result yet, and onMintNFT callback is provided.
   const canMintNFT = isSuccess && reactionTimeMicroseconds !== undefined && !nftMinted && !!onMintNFT && !message.toLowerCase().includes("nft minted successfully");
   const hasMintedThisNFT = nftMinted && nftTokenId !== undefined && message.toLowerCase().includes("nft minted successfully");
+  const canShareScore = isSuccess && reactionTimeMicroseconds !== undefined;
+
+  const SITE_URL = process.env.NEXT_PUBLIC_URL || 'http://localhost:3000';
+
+  const handleShareMintedNFTToFarcaster = () => {
+    if (nftTokenId === undefined) return;
+    const shareUrl = `${SITE_URL}`;
+    const farcasterIntentUrl = `https://warpcast.com/~/compose?text=Check%20out%20my%20Reflex%20Blitz%20NFT!&embeds[]=${encodeURIComponent(shareUrl)}`;
+    sdk.actions.openUrl(farcasterIntentUrl); 
+  };
+
+  const handleShareScoreToFarcaster = () => {
+    if (reactionTimeMicroseconds === undefined) return;
+    const shareUrl = `${SITE_URL}`;
+    const scoreMs = (reactionTimeMicroseconds / 1000).toFixed(3);
+    const farcasterIntentUrl = `https://warpcast.com/~/compose?text=Check%20out%20my%20Reflex%20Blitz%20score:%20${scoreMs}%20ms!&embeds[]=${encodeURIComponent(shareUrl)}`;
+    sdk.actions.openUrl(farcasterIntentUrl);
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
@@ -132,7 +149,7 @@ const ResultModal: React.FC<ResultModalProps> = ({
         
         {previewSvgDataUrl && isSuccess && !hasMintedThisNFT && (
           <div className="my-4 p-2 bg-gray-700 rounded-lg">
-            <h3 className="text-lg font-semibold mb-2 text-gray-300">NFT Preview:</h3>
+            <h3 className="text-lg font-semibold mb-2 text-gray-300">NFT Preview (if minted):</h3>
             <img src={previewSvgDataUrl} alt="NFT Preview" className="w-full max-w-[250px] mx-auto rounded border border-gray-600" />
           </div>
         )}
@@ -141,30 +158,48 @@ const ResultModal: React.FC<ResultModalProps> = ({
           <button
             onClick={onMintNFT}
             disabled={isMintingNFT}
-            className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition duration-150 ease-in-out w-full mb-4 disabled:opacity-70"
+            className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition duration-150 ease-in-out w-full mb-3 disabled:opacity-70"
           >
             {isMintingNFT ? 'Processing Mint...' : `Mint Record for ${mintPriceFromGame ? formatEther(mintPriceFromGame) : DEFAULT_MINT_PRICE_ETH} MON`}
           </button>
         )}
 
+        {/* Share Score Button (always shown if score is valid) */}
+        {canShareScore && !hasMintedThisNFT && (
+            <button
+              onClick={handleShareScoreToFarcaster}
+              className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-6 rounded-lg text-lg transition duration-150 ease-in-out w-full mb-3"
+            >
+              Share Score (Unminted)
+            </button>
+        )}
+
         {hasMintedThisNFT && (
-          <div className="mb-5 p-4 bg-gray-700 rounded-lg">
+          <div className="my-3 p-4 bg-gray-700 rounded-lg">
             <p className="text-green-400 font-semibold mb-2">NFT Minted Successfully!</p>
             <p className="text-sm text-gray-300">Token ID: #{nftTokenId}</p>
             <a
               href={`https://explorer.monadlabs.xyz/token/${NFT_CONTRACT_ADDRESS}?a=${nftTokenId}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-400 text-sm underline hover:text-blue-300"
+              className="text-blue-400 text-sm underline hover:text-blue-300 block mb-3"
             >
               View on Monad Explorer
             </a>
+            {/*
+            <button
+              onClick={handleShareMintedNFTToFarcaster} // Renamed handler
+              className="bg-purple-500 hover:bg-purple-600 text-white font-bold py-2 px-4 rounded-lg text-sm transition duration-150 ease-in-out w-full"
+            >
+              Share Minted NFT on Farcaster
+            </button>
+            */}
           </div>
         )}
 
         <button
           onClick={onClose}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition duration-150 ease-in-out w-full"
+          className="bg-gray-600 hover:bg-gray-700 text-white font-bold py-3 px-6 rounded-lg text-lg transition duration-150 ease-in-out w-full mt-2"
         >
           Close
         </button>
@@ -172,6 +207,34 @@ const ResultModal: React.FC<ResultModalProps> = ({
     </div>
   );
 };
+
+// イベントの引数の型を定義
+type FlashRequestedEventArgs = {
+  player: string;
+  requestTimestamp: bigint;
+  newSessionStartedAsFree: boolean;
+  playsLeftInSession: bigint;
+};
+
+type NFTMintedWithSignatureEventArgs = {
+  player: string;
+  tokenId: bigint;
+  score: bigint;
+  rank: string;
+  nonce: bigint;
+};
+
+// viemのLog型を拡張してargsを持つようにする
+// Log<TBlockNumber, TBlockTag, TTopics, TData, TRemoved, TArgs>
+// よりシンプルなアプローチ: イベント固有のログタイプを定義
+interface DecodedEventLog<TArgs = Record<string, unknown>> extends Log {
+  args: TArgs;
+  eventName: string;
+}
+
+// 具体的なイベントログの型
+// type FlashRequestedEventLog = DecodedEventLog<FlashRequestedEventArgs>; // 削除
+// type NFTMintedWithSignatureEventLog = DecodedEventLog<NFTMintedWithSignatureEventArgs>; // 削除
 
 export default function ReflexBlitzGame() {
   const [scheduledTime, setScheduledTime] = useState<number>(0);
@@ -289,7 +352,7 @@ export default function ReflexBlitzGame() {
       setReactionTimeForMint(reactionTimeForMintInMicro);
       if (!nftMintedForCurrentResult) { 
         try {
-          const svgUrl = await generatePreviewSvgDataUrl(reactionTimeForMintInMicro, NFT_CONTRACT_ADDRESS as Address, ReflexBlitzNFTABI as any);
+          const svgUrl = await generatePreviewSvgDataUrl(reactionTimeForMintInMicro, NFT_CONTRACT_ADDRESS as Address, ReflexBlitzNFTABI);
           setPreviewSvgDataUrl(svgUrl);
         } catch (e) {
           console.error("Error generating preview SVG:", e);
@@ -321,20 +384,22 @@ export default function ReflexBlitzGame() {
         setIsButtonVisible(false);
         return;
     }
-    setGameMessage("");
+    setGameMessage(""); 
 
     const unwatchFlashRequested = watchContractEvent(config, {
       address: VRF_CONTRACT_ADDRESS as Address,
       abi: VRFReflexBlitzABI_UPDATED, 
-      eventName: 'FlashRequested',
-      onLogs: (logs: any) => {
-        logs.forEach((log: any) => {
-          const eventData = log?.args as { player: string; requestTimestamp: bigint; newSessionStartedAsFree: boolean; playsLeftInSession: bigint };
-          if (eventData && eventData.player.toLowerCase() === address.toLowerCase()) {
-            setFlashRequestInitiatedTime(Date.now());
-            const frontendDelayMs = Math.random() * 3000 + 2000;
-            setScheduledTime(Date.now() + frontendDelayMs);
-            setIsButtonVisible(false);
+        eventName: 'FlashRequested',
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onLogs: (logs: any[]) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          logs.forEach((log: any) => {
+          const eventData = log.args as FlashRequestedEventArgs;
+            if (eventData && eventData.player.toLowerCase() === address.toLowerCase()) {
+              setFlashRequestInitiatedTime(Date.now());
+              const frontendDelayMs = Math.random() * 3000 + 2000;
+              setScheduledTime(Date.now() + frontendDelayMs);
+              setIsButtonVisible(false);
             setGameMessage("Get Ready...");
             setIsWaitingForFlash(true);
             setIsLoading(false);
@@ -344,18 +409,20 @@ export default function ReflexBlitzGame() {
                  setIsFreeSessionPossible(false); 
             }
             console.log('FlashRequested event received:', eventData);
-          }
-        });
-      },
+            }
+          });
+        },
     });
 
     const unwatchNFTMintedWithSignature = watchContractEvent(config, {
       address: NFT_CONTRACT_ADDRESS as Address,
       abi: ReflexBlitzNFTABI,
       eventName: 'NFTMintedWithSignature',
-        onLogs: (logs: any) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        onLogs: (logs: any[]) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             logs.forEach((log: any) => {
-          const eventData = log?.args as { player: string; tokenId: bigint; score: bigint; rank: string; nonce: bigint };
+          const eventData = log.args as NFTMintedWithSignatureEventArgs;
                 if (eventData && eventData.player.toLowerCase() === address.toLowerCase()) {
             console.log('NFTMintedWithSignature event received:', eventData);
             setNftMintedForCurrentResult(true);
@@ -365,7 +432,7 @@ export default function ReflexBlitzGame() {
                  setModalMessage(
                     `Your reaction time: ${(Number(eventData.score) / 1000).toFixed(3)} ms\nNFT Minted Successfully! Rank: ${eventData.rank}, Token ID: #${Number(eventData.tokenId)}`
                  );
-            } else {
+                    } else {
                  displayResult(
                     "NFT Minted!", 
                     `Record Saved!\nRank: ${eventData.rank}, Token ID: #${Number(eventData.tokenId)}\nReaction Time: ${(Number(eventData.score) / 1000).toFixed(3)} ms`,
@@ -441,9 +508,11 @@ export default function ReflexBlitzGame() {
         functionName: 'requestFlash',
         value: flashValue,
       });
-    } catch (error: any) {
+    } catch (e: unknown) {
+      const error = e as Error;
       console.error('Error requesting flash:', error);
-      let friendlyMessage = error.shortMessage || error.message || "An unknown error occurred.";
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let friendlyMessage = (error && typeof (error as any).shortMessage === 'string' ? (error as any).shortMessage : null) || (error.message ? error.message : String(error)) || "An unknown error occurred.";
       if (error.message?.includes("Value sent for a play within an active session")) friendlyMessage = "Error: Payment sent when plays are remaining in session.";
       else if (error.message?.includes("Value sent for a free play session")) friendlyMessage = "Error: Payment sent for a free session.";
       else if (error.message?.includes("Incorrect play price for new session")) friendlyMessage = "Error: Incorrect payment amount for a new session.";
@@ -480,7 +549,7 @@ export default function ReflexBlitzGame() {
     if (reactionTimeForMint === undefined || reactionTimeForMint <=0 ) {
       const msg = lastDisplayedReactionTimeMs ? `Recorded reaction time: ${(lastDisplayedReactionTimeMs / 1000).toFixed(3)} ms.` : "No valid reaction time recorded to mint NFT.";
       displayResult("Mint Error", msg, false, reactionTimeForMint);
-      return;
+        return;
     }
     setIsMintingNFT(true);
     const baseMessageForMintModal = `Minting NFT for your score of ${(reactionTimeForMint / 1000).toFixed(3)} ms.`;
@@ -531,24 +600,19 @@ export default function ReflexBlitzGame() {
         throw new Error(`Transaction reverted. Status: ${receipt.status}. TxHash: ${hash}. Check block explorer for details.`);
       }
 
-    } catch (error: any) {
+    } catch (e: unknown) {
+      const error = e as Error;
+      console.error("Error in minting process:", error);
       setIsMintingNFT(false);
-      const mintAttemptMessageBase = (showResultModal && modalMessage.startsWith("Minting NFT for your score")) 
-            ? modalMessage.split('\\n\\nStage')[0] 
-            : `Failed to mint NFT for score ${(reactionTimeForMint / 1000).toFixed(3)} ms.`;
-      
-      let detailedErrorMessage = error.shortMessage || error.message;
-      if (error instanceof Error && error.message.includes("Transaction reverted.")) {
-           detailedErrorMessage = error.message; 
-      } else if (error.cause && typeof error.cause === 'object') { 
-          detailedErrorMessage = `${detailedErrorMessage} Cause: ${JSON.stringify(error.cause, Object.getOwnPropertyNames(error.cause))}`;
-      } else if (error.cause) {
-          detailedErrorMessage = `${detailedErrorMessage} Cause: ${String(error.cause)}`;
-      }
-
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let friendlyMessage = (error && typeof (error as any).shortMessage === 'string' ? (error as any).shortMessage : null) || (error.message ? error.message : String(error)) || "An unknown error occurred while minting.";
+      if (error.message?.includes("Nonce already used")) friendlyMessage = "Error: This score has already been submitted or the signature is invalid.";
+      else if (error.message?.includes("Signature expired")) friendlyMessage = "Error: The minting signature has expired. Please try sharing again.";
+      else if (error.message?.includes("Invalid signer")) friendlyMessage = "Error: Invalid signature. The signer is not authorized.";
+      else if (error.message?.includes("Incorrect mint price")) friendlyMessage = "Error: Incorrect mint price provided.";
       displayResult(
           showResultModal ? modalTitle : "Mint Error", 
-          `${mintAttemptMessageBase}\n\nError: ${detailedErrorMessage}`.substring(0, 1000), // Limit error message length for display
+          `${friendlyMessage}`.substring(0, 1000), // Limit error message length for display
           showResultModal ? modalSuccess : false, 
           reactionTimeForMint 
       );
@@ -676,7 +740,7 @@ export default function ReflexBlitzGame() {
         </div>
 
          <p className="mt-8 text-xs text-gray-500">
-          Instructions: Connect wallet & switch to Monad Testnet. Request a session (cost: {formatEther(playPrice)} MON for {playsPerSession} plays, or free if cooldown passed). Click "TAP!" when it appears. Mint your record for {formatEther(mintPrice)} MON.
+          Instructions: Connect wallet & switch to Monad Testnet. Request a session (cost: {formatEther(playPrice)} MON for {playsPerSession} plays, or free if cooldown passed). Click &quot;TAP!&quot; when it appears. Mint your record for {formatEther(mintPrice)} MON.
         </p>
       </div>
     </div>
@@ -686,8 +750,9 @@ export default function ReflexBlitzGame() {
 async function generatePreviewSvgDataUrl(
   reactionTimeMicroseconds: number, 
   nftContractAddr: Address, 
-  nftAbi: any[]
+  nftAbi: Abi
 ): Promise<string | undefined> {
+  if (reactionTimeMicroseconds <= 0) return undefined;
   try {
     const rankResult = await readContract(config, {
       address: nftContractAddr,

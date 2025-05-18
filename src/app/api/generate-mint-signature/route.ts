@@ -109,13 +109,16 @@ export async function POST(request: Request) {
       nftContractAddress: NFT_CONTRACT_ADDRESS
     });
 
-  } catch (error: any) {
+  } catch (e: unknown) {
+    const error = e as Error;
     console.error('Error generating EIP-712 signature:', error);
-    // error.shortMessage を含めるなど、より詳細なエラー情報を返すことを検討
     let errorMessage = 'Failed to generate signature.';
-    if (error.shortMessage) {
-        errorMessage += `: ${error.shortMessage}`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if (error && typeof (error as any).shortMessage === 'string') {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        errorMessage += `: ${(error as any).shortMessage}`;
     }
-    return NextResponse.json({ error: errorMessage, details: error.message }, { status: 500 });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return NextResponse.json({ error: errorMessage, details: error.message ? error.message : String(error) }, { status: 500 });
   }
 } 

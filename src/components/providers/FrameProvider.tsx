@@ -57,13 +57,13 @@ export function useFrame() {
           ? `Added, got notificaton token ${result.notificationDetails.token} and url ${result.notificationDetails.url}`
           : "Added, got no notification details"
       );
-    } catch (error: any) {
+    } catch (error) {
       if (error && typeof error === 'object' && 'name' in error && 
           (error.name === 'RejectedByUser' || error.name === 'InvalidDomainManifestJson' || error.name === 'InvalidDomainManifest')) {
-        setAddFrameResult(`Not added: ${error.message || String(error)}`);
+        setAddFrameResult(`Not added: ${(error as Error).message || String(error)}`);
       } else {
         if (error && typeof error === 'object' && 'message' in error) {
-          setAddFrameResult(`Error: ${error.message}`);
+          setAddFrameResult(`Error: ${(error as Error).message}`);
         } else {
           setAddFrameResult(`Error: ${String(error)}`);
         }
