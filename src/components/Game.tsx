@@ -81,7 +81,7 @@ const DEFAULT_PLAY_PRICE_ETH = "0.01";
 const DEFAULT_MINT_PRICE_ETH = "0.1";
 
 const MAX_REACTION_TIME_MS = 5000; // 5 seconds for successful tap (client-side)
-const MIN_REACTION_TIME_MS = 50;  // Minimum plausible reaction time (client-side)
+const MIN_REACTION_TIME_MS = 10;  // Minimum plausible reaction time (client-side)
 
 const truncateAddress = (address: string | undefined) => {
   if (!address) return "";
@@ -179,7 +179,7 @@ const ResultModal: React.FC<ResultModalProps> = ({
             <p className="text-green-400 font-semibold mb-2">NFT Minted Successfully!</p>
             <p className="text-sm text-gray-300">Token ID: #{nftTokenId}</p>
             <a
-              href={`https://explorer.monadlabs.xyz/token/${NFT_CONTRACT_ADDRESS}?a=${nftTokenId}`}
+              href={`https://magiceden.io/item-details/monad-testnet/${NFT_CONTRACT_ADDRESS}/${nftTokenId}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 text-sm underline hover:text-blue-300 block mb-3"
