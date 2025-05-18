@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+scripts/deployContract.js
+scripts/setSigner.js
+hardhat.config.cjs
+scripts/withdrawFunds.js
