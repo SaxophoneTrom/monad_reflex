@@ -184,7 +184,7 @@ const ResultModal: React.FC<ResultModalProps> = ({
               rel="noopener noreferrer"
               className="text-blue-400 text-sm underline hover:text-blue-300 block mb-3"
             >
-              View on Monad Explorer
+              View on Magic Eden
             </a>
             {/*
             <button
